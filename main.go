@@ -1,1 +1,25 @@
-package mainimport (	"encoding/json"	"fmt"	uuid "github.com/satori/go.uuid"	"io/ioutil"	"jRebel-license-server/util"	"log"	"net/http"	"net/url"	"strconv")func uuidHandler(w http.ResponseWriter, req *http.Request) {	uuid := uuid.NewV4().String()	fmt.Printf("UUIDv4: %s\n", uuid)	w.Write([]byte(uuid))}func leases(w http.ResponseWriter, request *http.Request) {	body,_ :=ioutil.ReadAll(request.Body)	log.Printf("{%s} {%s}", request.Method,request.RequestURI+string(body) )	values, _ := url.ParseRequestURI(request.RequestURI+"?"+string(body))	randomness := values.Query().Get("randomness")	username := values.Query().Get("username")	clientTime := values.Query().Get("clientTime")	guid := values.Query().Get("guid")	offline, _ := strconv.ParseBool(values.Query().Get("offline"))	validFrom := "null"	validUntil := "null"	if offline {		ct, _ := strconv.ParseUint(clientTime, 10, 64)		clientTimeUntil := ct + 180*24*60*60*1000		validFrom = clientTime		validUntil = string(clientTimeUntil)	}	jsonStr := `{    "serverVersion": "3.2.4",    "serverProtocolVersion": "1.1",    "serverGuid": "a1b4aea8-b031-4302-b602-670a990272cb",    "groupType": "managed",    "id": 1,    "licenseType": 1,    "evaluationLicense": false,    "signature": "OJE9wGg2xncSb+VgnYT+9HGCFaLOk28tneMFhCbpVMKoC/Iq4LuaDKPirBjG4o394/UjCDGgTBpIrzcXNPdVxVr8PnQzpy7ZSToGO8wv/KIWZT9/ba7bDbA8/RZ4B37YkCeXhjaixpmoyz/CIZMnei4q7oWR7DYUOlOcEWDQhiY=",    "serverRandomness": "H2ulzLlh7E0=",    "seatPoolType": "standalone",    "statusCode": "SUCCESS",    "offline": %t,    "validFrom": %s,    "validUntil": %s,    "company": "Administrator",    "orderId": "",    "zeroIds": [            ],    "licenseValidFrom": 1490544001000,    "licenseValidUntil": 1691839999000	}`	jsonStr = fmt.Sprintf(jsonStr, offline, validFrom, validUntil)	var jsonObject map[string]interface{}	json.Unmarshal([]byte(jsonStr), &jsonObject)	if randomness == "" || username == "" || guid == "" {		w.WriteHeader(403)	} else {		signature := util.RSA{}.Sign(randomness, guid, offline, validFrom, validUntil)		jsonObject["signature"] = signature		jsonObject["company"] = username		body, _ := json.Marshal(jsonObject)		w.Header().Add("content-type", "application/json;charset=utf-8")		w.Write(body)	}}func validateConnection(w http.ResponseWriter, request *http.Request) {	jsonStr := `{    "serverVersion": "3.2.4",    "serverProtocolVersion": "1.1",    "serverGuid": "a1b4aea8-b031-4302-b602-670a990272cb",    "groupType": "managed",    "statusCode": "SUCCESS",    "company": "Administrator",    "canGetLease": true,    "licenseType": 1,    "evaluationLicense": false,    "seatPoolType": "standalone"}`	w.Header().Add("content-type", "application/json;charset=utf-8")	w.Write([]byte(jsonStr))}func leases1(w http.ResponseWriter, request *http.Request) {	body,_ :=ioutil.ReadAll(request.Body)	values, _ := url.ParseRequestURI(string(body))	company := values.Query().Get("username")	jsonStr := `{    "serverVersion": "3.2.4",    "serverProtocolVersion": "1.1",    "serverGuid": "a1b4aea8-b031-4302-b602-670a990272cb",    "groupType": "managed",    "statusCode": "SUCCESS",    "msg": null,    "statusMessage": null,    "company": %s,}`	jsonStr = fmt.Sprintf(jsonStr, company)	w.Header().Add("content-type", "application/json;charset=utf-8")	w.Write([]byte(jsonStr))}func main() {	//1.注册一个处理器函数	http.HandleFunc("/uuid", uuidHandler)	http.HandleFunc("/jrebel/leases", leases)	http.HandleFunc("/jrebel/leases/1", leases1)	http.HandleFunc("/jrebel/validate-connection", validateConnection)	//2.设置监听的TCP地址并启动服务	//参数1:TCP地址(IP+Port)	//参数2:handler handler参数一般会设为nil，此时会使用DefaultServeMux。	fmt.Printf(`    启动成功 端口号:9000	GET /uuid 生成随机串	http://localhost:9000/{uuid} 放入jrebel激活地址栏`)	err := http.ListenAndServe("127.0.0.1:9000", nil)	if err != nil {		fmt.Printf("http.ListenAndServe()函数执行错误,错误为:%v\n", err)		return	}}
+package main
+
+import (
+	"fmt"
+	"jRebel-license-server/handler"
+	"net/http"
+)
+
+func main() {
+	//1.注册处理器函数
+	http.HandleFunc("/uuid", handler.UUID)
+	http.HandleFunc("/jrebel/leases", handler.Leases)
+	http.HandleFunc("/jrebel/leases/1", handler.Leases1)
+	http.HandleFunc("/jrebel/validate-connection", handler.ValidateConnection)
+	fmt.Println(`
+    启动成功 端口号:9000
+	GET /uuid 生成随机串
+	http://localhost:9000/{uuid} 放入jrebel激活地址栏`)
+	err := http.ListenAndServe("127.0.0.1:9000", nil)
+	if err != nil {
+		fmt.Printf("http.ListenAndServe()函数执行错误,错误为:%v\n", err)
+		return
+	}
+
+}
