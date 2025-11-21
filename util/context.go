@@ -19,3 +19,7 @@ func WriteJson(w http.ResponseWriter, jsonObject interface{}) {
 	w.Header().Add("content-type", "application/json;charset=utf-8")
 	w.Write(body)
 }
+func WriteText(w http.ResponseWriter, jsonStr string) {
+	w.Header().Add("content-type", "application/json;charset=utf-8")
+	w.Write([]byte(jsonStr))
+}

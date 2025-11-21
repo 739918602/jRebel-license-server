@@ -3,12 +3,11 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"jRebel-license-server/util"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
+	"time"
 )
 
 const leasesStr = `{
@@ -31,8 +30,8 @@ const leasesStr = `{
     "zeroIds": [
         
     ],
-    "licenseValidFrom": 1490544001000,
-    "licenseValidUntil": 1691839999000
+    "licenseValidFrom": %d,
+    "licenseValidUntil": %d
 	}`
 const validateConnStr = `{
     "serverVersion": "3.2.4",
@@ -66,13 +65,17 @@ func Leases(w http.ResponseWriter, request *http.Request) {
 	offline, _ := strconv.ParseBool(values.Get("offline"))
 	validFrom := "null"
 	validUntil := "null"
+	//在线校验
+	licenseValidFrom := time.Now().Unix() * 1000
+	licenseValidUntil := time.Now().AddDate(3, 0, 0).Unix() * 1000
 	if offline {
+		//离线校验
 		ct, _ := strconv.ParseUint(clientTime, 10, 64)
-		clientTimeUntil := ct + 180*24*60*60*1000
+		clientTimeUntil := ct + uint64((180 * 24 * time.Hour).Milliseconds())
 		validFrom = clientTime
 		validUntil = strconv.FormatUint(clientTimeUntil, 10)
 	}
-	data := fmt.Sprintf(leasesStr, offline, validFrom, validUntil)
+	data := fmt.Sprintf(leasesStr, offline, validFrom, validUntil, licenseValidFrom, licenseValidUntil)
 	var jsonObject map[string]interface{}
 	err := json.Unmarshal([]byte(data), &jsonObject)
 	if err != nil {
@@ -94,10 +97,10 @@ func ValidateConnection(w http.ResponseWriter, request *http.Request) {
 	util.WriteJson(w, validateConnStr)
 }
 func Leases1(w http.ResponseWriter, request *http.Request) {
-	body, _ := ioutil.ReadAll(request.Body)
-	values, _ := url.ParseRequestURI(string(body))
-	company := values.Query().Get("username")
+	values := util.GetUrlParams(request)
+
+	company := values.Get("username")
 
 	jsonStr := fmt.Sprintf(leases1Str, company)
-	util.WriteJson(w, jsonStr)
+	util.WriteText(w, jsonStr)
 }
