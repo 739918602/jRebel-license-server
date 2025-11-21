@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"jRebel-license-server/util"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -69,11 +70,17 @@ func Leases(w http.ResponseWriter, request *http.Request) {
 		ct, _ := strconv.ParseUint(clientTime, 10, 64)
 		clientTimeUntil := ct + 180*24*60*60*1000
 		validFrom = clientTime
-		validUntil = string(clientTimeUntil)
+		validUntil = strconv.FormatUint(clientTimeUntil, 10)
 	}
 	data := fmt.Sprintf(leasesStr, offline, validFrom, validUntil)
 	var jsonObject map[string]interface{}
-	json.Unmarshal([]byte(data), &jsonObject)
+	err := json.Unmarshal([]byte(data), &jsonObject)
+	if err != nil {
+		log.Println("Error unmarshalling JSON:", err)
+		w.WriteHeader(500)
+		util.WriteJson(w, map[string]string{"error": "internal server error"})
+		return
+	}
 	if randomness == "" || username == "" || guid == "" {
 		w.WriteHeader(403)
 	} else {
